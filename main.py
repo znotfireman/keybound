@@ -1,199 +1,113 @@
-# You could use dictionaries here but builders have "type safety" and I'm not
-# bothered to learn python typechecking :/
-
-# Keycodes are based on Tkinter:
-# https://stackoverflow.com/a/32289245
-
-class Key:
-    def __init__(self):
-        self.label = "?"
-        self.codes = []
-        self.x = 0
-        self.y = 0
-        pass
-    
-    def set_label(self, label: str):
-        self.label = label
-        return self
-    
-    def set_position(self, x, y):
-        self.x = x
-        self.y = y
-        return self
-    
-    def add_keycode(self, code: str):
-        self.codes.append(code)
-        return self
-
-KEYS = [
-    Key()
-        .set_label("W")
-        .set_position(1, 0)
-        .add_keycode("W")
-        .add_keycode("w"),
-    
-    Key()
-        .set_label("A")
-        .set_position(1, 0)
-        .add_keycode("A")
-        .add_keycode("a"),
-    
-    Key()
-        .set_label("A")
-        .set_position(0, 1)
-        .add_keycode("A")
-        .add_keycode("a"),
-        
-    Key()
-        .set_label("S")
-        .set_position(1, 1)
-        .add_keycode("S")
-        .add_keycode("s"),
-        
-    Key()
-        .set_label("D")
-        .set_position(2, 1)
-        .add_keycode("D")
-        .add_keycode("d"),
-        
-    Key()
-        .set_label("Space")
-        .set_position(2, 0)
-        .add_keycode("<Space>")
-]
-
-# ------------------------------------------------------------------------------
-
-from keypress import Keys, get_key
+from typing import TypedDict, Optional
 from tkinter import *
-import tkinter
 import tkinter.font as tkFont
-import argparse
-import os
-import tomllib
-import subprocess
 
-homedir = os.path.expanduser('~')
+class Key(TypedDict):
+    label: str
+    # Refer to Tkinter keycodes:
+    # https://stackoverflow.com/a/32289245
+    codes: list[str]
+    x: int
+    y: int
+    width: Optional[int]
+    height: Optional[int]
+
+KEYS: list[Key] = [
+    {
+        "label": "W",
+        "codes": ["W", "w"],
+        "x": 1,
+        "y": 0,
+        "width": None,
+        "height": None
+    },
+    {
+        "label": "A",
+        "codes": ["A", "a"],
+        "x": 0,
+        "y": 1,
+        "width": None,
+        "height": None
+    },
+    {
+        "label": "S",
+        "codes": ["S", "s"],
+        "x": 1,
+        "y": 1,
+        "width": None,
+        "height": None
+    },
+    {
+        "label": "D",
+        "codes": ["D", "d"],
+        "x": 2,
+        "y": 1,
+        "width": None,
+        "height": None
+    },
+    {
+        "label": "Jump",
+        "codes": ["<space>"],
+        "x": 0,
+        "y": 2,
+        "width": 3,
+        "height": 0.5
+    },
+]
 
 KEY_WIDTH = 64
 KEY_HEIGHT = 64
 KEY_TEXT_SIZE = 24
-KEY_TEXT_TOP_PADDING = 24
+KEY_MARGIN = 2
 
-CONFIGURATION_DIR = f"{homedir}/.bikey"
-CONFIGURATION_FILE_PATH = f"{CONFIGURATION_DIR}/configuration.toml"
+root = Tk(screenName="Bikey", baseName="Bikey", className='Tk', useTk=1)
+canvas = Canvas(root, background='black')
+canvas.grid(column=0, row=0, sticky=(N, W, E, S))
 
-parser = argparse.ArgumentParser(prog = 'Bikey', description = 'Bill\'s Keyboard HUD')
-parser.add_argument('subcommand', default="help")
-parser.add_argument('-c', '--configuration', default=CONFIGURATION_FILE_PATH)
+font = tkFont.Font(family="Arial", size=KEY_TEXT_SIZE)
 
-def init(configuration_path):
-    if os.path.exists(configuration_path):
-        print(f"already initialized configuration file at {configuration_path}")
-        exit(1)
+def render_key(key: Key, bg_fill, fg_fill):
+    label = key.get("label")
     
-    configuration = open(configuration_path, "w+")
-    configuration.writelines("\n".join([
-        "[[inputs]]",
-        "label = 'W'",
-        "codes = ['W', 'w']",
-        "position = [1, 0]",
-        "",
-        "[[inputs]]",
-        "label = 'A'",
-        "codes = ['A', 'a']",
-        "position = [0, 1]",
-        "",
-        "[[inputs]]",
-        "label = 'S'",
-        "codes = ['S', 's']",
-        "position = [1, 1]",
-        "",
-        "[[inputs]]",
-        "label = 'D'",
-        "codes = ['D', 'd']",
-        "position = [2, 1]",
-    ]))
+    x0 = key.get("x") * KEY_WIDTH + KEY_MARGIN
+    y0 = key.get("y") * KEY_HEIGHT + KEY_MARGIN
     
-    configuration.close()
-    print(f"wrote base configuration at {configuration_path}")
-
-def bind_key(root: Tk, canvas: Canvas, font: tkFont.Font, key):
-    key_label = key.get("label")
-    key_codes = key.get("codes")
+    width = key.get("width") or 1
+    height = key.get("height") or 1
     
-    position = key.get("position")
-    x = position[0]
-    y = position[1]
+    real_width = width * KEY_WIDTH
+    real_height = height * KEY_HEIGHT
     
-    position_x = x * KEY_WIDTH
-    position_y = y * KEY_HEIGHT
+    x1 = x0 + real_width - KEY_MARGIN
+    y1 = y0 + real_height - KEY_MARGIN
     
-    canvas.create_rectangle(position_x, position_y, position_x + KEY_WIDTH, position_y + KEY_HEIGHT, fill="white")
-    
-    text_size = font.measure(key_label)
-    canvas.create_text(
-        position_x + KEY_WIDTH / 2 - text_size / 2,
-        position_y + KEY_TEXT_TOP_PADDING,
-        text=key_label,
-        fill="black",
-        font=font
+    canvas.create_rectangle(
+        x0,
+        y0,
+        x1,
+        y1,
+        fill=bg_fill
     )
     
-    for keycode in key_codes:
-        def on_key_press(event: Event):
-            global keycode
-            print("keycode pressed", keycode, event)
+    text_width = font.measure(label)
+    
+    canvas.create_text(
+        x0 + real_width / 2,
+        y0 + real_height / 2,
+        text=label,
+        fill=fg_fill,
+        justify="center",
+        font=font
+    )
 
-        root.bind(keycode, on_key_press)
+for key in KEYS:
+    render_key(key, "white", "black")
+    
+    def on_pressed(event: Event, key=key):
+        render_key(key, "yellow", "black")
+    
+    for keycode in key.get("codes"):
+        root.bind(keycode, on_pressed)
 
-def run(configuration_path):
-    if os.path.exists(args.configuration) == False:
-        print(f"cannot find configuration file at {args.configuration}")
-        exit(1)
-    
-    configuration_contents = open(args.configuration, "rb")
-    configuration = tomllib.load(configuration_contents)
-    
-    inputs = configuration.get("inputs")
-    
-    root = Tk(screenName="Bikey", baseName="Bikey", className='Tk', useTk=1)
-    canvas = Canvas(root, background='black')
-    canvas.grid(column=0, row=0, sticky=(N, W, E, S))
-    
-    font = tkFont.Font(family="Arial", size=KEY_TEXT_SIZE)
-    
-    for key in inputs:
-        bind_key(root, canvas, font, key)
-
-    canvas.pack()
-    root.mainloop()
-        
-if __name__ == "__main__":
-    args = parser.parse_args()
-    os.makedirs(CONFIGURATION_DIR, exist_ok=True)
- 
-    if args.subcommand == "help":
-        parser.print_help()
-    elif args.subcommand == "run":
-        run(args.configuration)
-    elif args.subcommand == "init":
-        init(args.configuration)
-    elif args.subcommand == "configure":
-        if os.path.exists(CONFIGURATION_FILE_PATH):
-            subprocess.run(["code", CONFIGURATION_FILE_PATH])
-        else:
-            print(f"no configuration file at {CONFIGURATION_FILE_PATH}")
-            exit(1)
-    elif args.subcommand == "deinit":
-        if os.path.exists(CONFIGURATION_FILE_PATH):
-            os.remove(CONFIGURATION_FILE_PATH)
-            print(f"removed configuration file at {CONFIGURATION_FILE_PATH}")
-        else:
-            print(f"no configuration file at {CONFIGURATION_FILE_PATH}")
-            exit(1)
-    else:
-        print(f"invalid subcommand: {args.subcommand}")
-        exit(1)
-    
-    exit(0)
+canvas.pack()
+root.mainloop()
