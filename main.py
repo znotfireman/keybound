@@ -1,14 +1,13 @@
-from typing import TypedDict, Optional
+from typing import TypedDict, Optional, Union
 from tkinter import *
 import tkinter.font as tkFont
 import time
 import math
+from pynput import keyboard
 
 class Key(TypedDict):
     label: str
-    # Refer to Tkinter keycodes:
-    # https://stackoverflow.com/a/32289245
-    codes: list[str]
+    codes: list[Union[str, keyboard.Key]]
     x: int
     y: int
     width: Optional[int]
@@ -53,7 +52,7 @@ KEYS: list[Key] = [
         "x": 0,
         "y": 2,
         "width": 3,
-        "height": 0.5
+        "height": 1
     },
 ]
 
@@ -69,6 +68,8 @@ canvas.grid(column=0, row=0, sticky=(N, W, E, S))
 
 font = tkFont.Font(family="Arial", size=KEY_TEXT_SIZE)
 time_font = tkFont.Font(family="Arial", size=KEY_TIME_TEXT_SIZE)
+
+keys_held_at: dict[str, float] = {}
 
 def render_key(key: Key, bg_fill, fg_fill, held_at=None):
     label = key.get("label")
@@ -106,7 +107,7 @@ def render_key(key: Key, bg_fill, fg_fill, held_at=None):
         time_pressed = time.time() - held_at
 
         # HACK: using a newline as to not deal with layouting
-        time_label = f"\n{time_pressed:.1f}s"
+        time_label = f"\n{time_pressed:.2f}s"
         
         canvas.create_text(
             x0 + real_width / 2,
@@ -118,18 +119,24 @@ def render_key(key: Key, bg_fill, fg_fill, held_at=None):
             font=time_font
         )
     
-keys_held_at: dict[str, float] = {}
+def on_press(key: Union[keyboard.Key, Event]):
+    try:
+        if key.char not in keys_held_at:
+            keys_held_at[key.char] = time.time()
+    except AttributeError:
+        # special keys don't have a char field
+        if key not in keys_held_at:
+            keys_held_at[key] = time.time()
+    
 
-def on_pressed(event: Event):
-    if event.char not in keys_held_at:
-        keys_held_at[event.char] = time.time()
-
-def on_released(event: Event):
-    if event.char in keys_held_at:
-        keys_held_at.pop(event.char)
-
-root.bind("<Key>", on_pressed)
-root.bind("<KeyRelease>", on_released)
+def on_release(key: Union[keyboard.Key, Event]):
+    try:
+        if key.char in keys_held_at:
+            keys_held_at.pop(key.char)
+    except AttributeError:
+        # special keys don't have a char field
+        if key in keys_held_at:
+            keys_held_at.pop(key)
 
 def key_loop():
     for key in KEYS:
@@ -148,9 +155,29 @@ def key_loop():
             render_key(key, "yellow", "black", held_at)
         else:
             render_key(key, "gray", "white")
-            
+    
     # ~60fps
     root.after(16, key_loop)
     
+preferred_listener = input("Which keyboard listener to use? ('pynput' or 'tkinter', pynput requires setup): ")
+    
+if preferred_listener == "pynput":
+    print("Using pynput listener")
+    keyboard.Listener(
+        on_press=on_press,
+        on_release=on_release
+    ).start()
+elif preferred_listener == "tkinter":
+    print("Using tkinter listener")
+    root.bind("<Key>", on_press)
+    root.bind("<KeyRelease>", on_release)
+else:
+    raise "Unknown keyboard listener"
+    
 key_loop()
+
+def on_main_loop():
+    print("Window main loop started!")
+    
+root.after(10, on_main_loop)
 root.mainloop()
